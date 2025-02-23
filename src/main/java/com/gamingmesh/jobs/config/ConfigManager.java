@@ -296,6 +296,9 @@ public class ConfigManager {
         cfg.addComment(pt + ".Break.gravel.income", "you can use minuses to take away money if the player break this block");
         cfg.get(pt + ".Break.gravel.income", -1D);
 
+        cfg.addComment(pt + ".NexoBreak", "Breaking CUSTOM blocks of the Nexo plugin");
+        generate(cfg, pt + ".NexoBreak.block_id");
+
         cfg.addComment(pt + ".Collect", "Payment for collecting things from sweet berry bush, composter or honey. Keep in mind that you need to define item you get it and not block you click on.");
 
         generate(cfg, pt + ".Collect.sweet_berries-2");
@@ -594,6 +597,7 @@ public class ConfigManager {
         case MMKILL:
         case PYROFISHINGPRO:
         case CUSTOMFISHING:
+        case NEXOBREAK:
         case BREED:
         case TAME:
         case SHEAR:
@@ -796,7 +800,7 @@ public class ConfigManager {
 
         } else if (actionType == ActionType.CUSTOMKILL || actionType == ActionType.COLLECT || actionType == ActionType.MMKILL
             || actionType == ActionType.BAKE || actionType == ActionType.SMELT || actionType == ActionType.PYROFISHINGPRO
-            || actionType == ActionType.CUSTOMFISHING) {
+            || actionType == ActionType.CUSTOMFISHING || actionType == ActionType.NEXOBREAK) {
             type = myKey;
         } else if (actionType == ActionType.EXPLORE) {
             type = myKey;

@@ -7,12 +7,14 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.gamingmesh.jobs.Jobs;
+import com.gamingmesh.jobs.commands.list.stats;
 import com.gamingmesh.jobs.hooks.McMMO.McMMO1_X_listener;
 import com.gamingmesh.jobs.hooks.McMMO.McMMO2_X_listener;
 import com.gamingmesh.jobs.hooks.McMMO.McMMOManager;
 import com.gamingmesh.jobs.hooks.MyPet.MyPetManager;
 import com.gamingmesh.jobs.hooks.MythicMobs.MythicMobInterface;
 import com.gamingmesh.jobs.hooks.MythicMobs.MythicMobs5;
+import com.gamingmesh.jobs.hooks.Nexo.NexoManager;
 import com.gamingmesh.jobs.hooks.WorldGuard.WorldGuardManager;
 import com.gamingmesh.jobs.hooks.stackMob.StackMobHandler;
 import com.gamingmesh.jobs.hooks.wildStacker.WildStackerHandler;
@@ -31,6 +33,7 @@ public class HookManager {
     private static BlockTrackerManager blockTrackerManager;
     private static PyroFishingProManager pyroFishingProManager;
     private static CustomFishingManager customFishingManager;
+    private static NexoManager nexoManager;
 
     private static final Jobs PLUGIN = JavaPlugin.getPlugin(Jobs.class);
 
@@ -48,6 +51,7 @@ public class HookManager {
             setBlockTrackerManager();
             setPyroFishingProManager();
             setCustomFishingManager();
+            setNexoManager();
         });
     }
 
@@ -108,6 +112,13 @@ public class HookManager {
         return customFishingManager;
     }
 
+    public static NexoManager getNexoManager() {
+        if (nexoManager == null)
+            nexoManager = new NexoManager();
+
+        return nexoManager;
+    }
+
     public static boolean checkMythicMobs() {
         return Jobs.getGCManager().MythicMobsEnabled && MythicManager != null && MythicManager.check();
     }
@@ -118,6 +129,10 @@ public class HookManager {
 
     public static boolean checkCustomFishing() {
         return customFishingManager != null;
+    }
+
+    public static boolean checkNexo() {
+        return nexoManager != null;
     }
 
     public static BlockTrackerManager getBlockTrackerManager() {
@@ -205,6 +220,13 @@ public class HookManager {
             } else {
                 CMIMessages.consoleMessage("&e" + JobsHook.CustomFishing + " detected. (Not using CustomFishing-Only Settings)");
             }
+        }
+    }
+
+    private static void setNexoManager() {
+        if(JobsHook.Nexo.isEnabled()) {
+            nexoManager = new NexoManager();
+            CMIMessages.consoleMessage("&e" + JobsHook.Nexo + "detected.");
         }
     }
 }

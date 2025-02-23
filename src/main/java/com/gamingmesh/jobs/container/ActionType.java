@@ -22,6 +22,7 @@ import net.Zrips.CMILib.Container.CMIText;
 
 public enum ActionType {
     BREAK(),
+    NEXOBREAK("NexoBreak"),
     STRIPLOGS("StripLogs"),
     TNTBREAK("TNTBreak"),
     PLACE(),

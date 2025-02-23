@@ -190,6 +190,13 @@
             <version>2.2.34</version>
             <scope>provided</scope>
         </dependency>
+		<!-- Nexo -->
+		<dependency>
+			<groupId>com.nexomc</groupId>
+			<artifactId>nexo</artifactId>
+			<version>1.0.0</version>
+			<scope>provided</scope>
+		</dependency>
 		<!-- CMILib -->
 		<dependency>
 			<groupId>net.Zrips</groupId>
@@ -236,6 +243,11 @@
 		<repository>
 			<id>bg-repo</id>
 			<url>https://repo.bg-software.com/repository/api/</url>
+		</repository>
+		<!-- Nexo -->
+		<repository>
+			<id>nexomc-releases</id>
+			<url>https://repo.nexomc.com/releases/</url>
 		</repository>
 		<!-- MyPet -->
 		<!--<repository> <id>mypet-repo</id> <url>https://repo.mypet-plugin.de/</url>
