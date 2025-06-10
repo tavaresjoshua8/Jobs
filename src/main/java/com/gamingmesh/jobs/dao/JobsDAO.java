@@ -36,6 +36,9 @@ import com.gamingmesh.jobs.container.ExploreRegion;
 import com.gamingmesh.jobs.container.Job;
 import com.gamingmesh.jobs.container.JobProgression;
 import com.gamingmesh.jobs.container.JobsPlayer;
+import com.gamingmesh.jobs.container.JobsQuestTop;
+import com.gamingmesh.jobs.container.JobsTop;
+import com.gamingmesh.jobs.container.JobsTop.topStats;
 import com.gamingmesh.jobs.container.JobsWorld;
 import com.gamingmesh.jobs.container.Log;
 import com.gamingmesh.jobs.container.LogAmounts;
@@ -47,7 +50,6 @@ import com.gamingmesh.jobs.economy.PaymentData;
 import com.gamingmesh.jobs.stuff.ToggleBarHandling;
 import com.gamingmesh.jobs.stuff.Util;
 
-import net.Zrips.CMILib.Logs.CMIDebug;
 import net.Zrips.CMILib.Messages.CMIMessages;
 import net.Zrips.CMILib.Time.CMITimeManager;
 import net.Zrips.CMILib.Version.Schedulers.CMIScheduler;
@@ -583,8 +585,21 @@ public abstract class JobsDAO {
         return prefix;
     }
 
-    public CompletableFuture<List<JobsDAOData>> getAllJobs(OfflinePlayer player) {
+    public CompletableFuture<List<JobsDAOData>> getAllJobsAsync(OfflinePlayer player) {
+        return CompletableFuture.supplyAsync(() -> {
+            return getAllJobs(player.getName(), player.getUniqueId());
+        });
+    }
+
+    @Deprecated
+    public List<JobsDAOData> getAllJobs(OfflinePlayer player) {
         return getAllJobs(player.getName(), player.getUniqueId());
+    }
+
+    public CompletableFuture<List<JobsDAOData>> getAllJobsSync(String playerName, UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            return getAllJobs(playerName, uuid);
+        });
     }
 
     /**
@@ -593,49 +608,48 @@ public abstract class JobsDAO {
      * @return list of all of the names of the jobs the players are part of.
      */
 
-    public CompletableFuture<List<JobsDAOData>> getAllJobs(String playerName, UUID uuid) {
-        return CompletableFuture.supplyAsync(() -> {
-            PlayerInfo userData = null;
-            if (Jobs.getGCManager().MultiServerCompatability())
-                userData = loadPlayerData(uuid);
-            else
-                userData = Jobs.getPlayerManager().getPlayerInfo(uuid);
+    @Deprecated
+    public List<JobsDAOData> getAllJobs(String playerName, UUID uuid) {
+        PlayerInfo userData = null;
+        if (Jobs.getGCManager().MultiServerCompatability())
+            userData = loadPlayerData(uuid);
+        else
+            userData = Jobs.getPlayerManager().getPlayerInfo(uuid);
 
-            List<JobsDAOData> jobs = new ArrayList<>();
+        List<JobsDAOData> jobs = new ArrayList<>();
 
-            if (userData == null) {
-                recordNewPlayer(playerName, uuid);
-                return jobs;
-            }
-
-            JobsConnection conn = getConnection();
-            if (conn == null)
-                return jobs;
-
-            PreparedStatement prest = null;
-            ResultSet res = null;
-            try {
-                prest = conn.prepareStatement("SELECT * FROM `" + getJobsTableName() + "` WHERE `" + JobsTableFields.userid.getCollumn() + "` = ?;");
-                prest.setInt(1, userData.getID());
-                res = prest.executeQuery();
-                while (res.next()) {
-                    int jobId = res.getInt(JobsTableFields.jobid.getCollumn());
-                    if (jobId == 0) {
-                        jobs.add(new JobsDAOData(res.getString(JobsTableFields.job.getCollumn()), res.getInt(JobsTableFields.level.getCollumn()), res.getDouble(JobsTableFields.experience.getCollumn())));
-                    } else {
-                        Job job = Jobs.getJob(jobId);
-                        if (job != null)
-                            jobs.add(new JobsDAOData(job.getName(), res.getInt(JobsTableFields.level.getCollumn()), res.getDouble(JobsTableFields.experience.getCollumn())));
-                    }
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            } finally {
-                close(res);
-                close(prest);
-            }
+        if (userData == null) {
+            recordNewPlayer(playerName, uuid);
             return jobs;
-        });
+        }
+
+        JobsConnection conn = getConnection();
+        if (conn == null)
+            return jobs;
+
+        PreparedStatement prest = null;
+        ResultSet res = null;
+        try {
+            prest = conn.prepareStatement("SELECT * FROM `" + getJobsTableName() + "` WHERE `" + JobsTableFields.userid.getCollumn() + "` = ?;");
+            prest.setInt(1, userData.getID());
+            res = prest.executeQuery();
+            while (res.next()) {
+                int jobId = res.getInt(JobsTableFields.jobid.getCollumn());
+                if (jobId == 0) {
+                    jobs.add(new JobsDAOData(res.getString(JobsTableFields.job.getCollumn()), res.getInt(JobsTableFields.level.getCollumn()), res.getDouble(JobsTableFields.experience.getCollumn())));
+                } else {
+                    Job job = Jobs.getJob(jobId);
+                    if (job != null)
+                        jobs.add(new JobsDAOData(job.getName(), res.getInt(JobsTableFields.level.getCollumn()), res.getDouble(JobsTableFields.experience.getCollumn())));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            close(res);
+            close(prest);
+        }
+        return jobs;
     }
 
     public Map<Integer, List<JobsDAOData>> getAllJobs() {
@@ -1340,7 +1354,7 @@ public abstract class JobsDAO {
      * @param userName - the player being searched for
      * @return list of all of the names of the jobs the players are part of.
      */
-    public synchronized List<JobsDAOData> getAllJobsOffline2(String userName) {
+    public synchronized List<JobsDAOData> getAllJobsOffline(String userName) {
         List<JobsDAOData> jobs = new ArrayList<>();
 
         PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(userName);
@@ -1519,24 +1533,26 @@ public abstract class JobsDAO {
      * @param job - job that the player wishes to join
      */
     public synchronized void joinJob(JobsPlayer jPlayer, JobProgression job) {
-        JobsConnection conn = getConnection();
-        if (conn == null)
-            return;
-        PreparedStatement prest = null;
-        try {
-            prest = conn.prepareStatement("INSERT INTO `" + getJobsTableName() + "` (`" + JobsTableFields.userid.getCollumn() + "`, `" + JobsTableFields.jobid.getCollumn()
-                + "`, `" + JobsTableFields.level.getCollumn() + "`, `" + JobsTableFields.experience.getCollumn() + "`, `" + JobsTableFields.job.getCollumn() + "`) VALUES (?, ?, ?, ?, ?);");
-            prest.setInt(1, jPlayer.getUserId());
-            prest.setInt(2, job.getJob().getId());
-            prest.setInt(3, job.getLevel());
-            prest.setDouble(4, job.getExperience());
-            prest.setString(5, job.getJob().getName());
-            prest.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            close(prest);
-        }
+        CompletableFuture.runAsync(() -> {
+            JobsConnection conn = getConnection();
+            if (conn == null)
+                return;
+            PreparedStatement prest = null;
+            try {
+                prest = conn.prepareStatement("INSERT INTO `" + getJobsTableName() + "` (`" + JobsTableFields.userid.getCollumn() + "`, `" + JobsTableFields.jobid.getCollumn()
+                    + "`, `" + JobsTableFields.level.getCollumn() + "`, `" + JobsTableFields.experience.getCollumn() + "`, `" + JobsTableFields.job.getCollumn() + "`) VALUES (?, ?, ?, ?, ?);");
+                prest.setInt(1, jPlayer.getUserId());
+                prest.setInt(2, job.getJob().getId());
+                prest.setInt(3, job.getLevel());
+                prest.setDouble(4, job.getExperience());
+                prest.setString(5, job.getJob().getName());
+                prest.execute();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            } finally {
+                close(prest);
+            }
+        });
     }
 
     /**
@@ -1753,66 +1769,36 @@ public abstract class JobsDAO {
         }
     }
 
-    List<TopList> gTopNames = Collections.synchronizedList(new ArrayList<>());
-    long gTopTime = 0L;
-
     /**
      * Get player list by total job level
      * @param start - starting entry
      * @return info - information about jobs
      */
+    @Deprecated
     public List<TopList> getGlobalTopList() {
 
-        if (gTopTime == 0L) {
-            updateGTop();
-        }
+        List<UUID> top = JobsTop.getGlobalTopList(0);
 
-        if (System.currentTimeMillis() - gTopTime > 30 * 1000L)
-            CMIScheduler.runTaskAsynchronously(plugin, this::updateGTop);
+        if (top == null || top.isEmpty())
+            return new ArrayList<>();
+
+        List<TopList> gTopNames = Collections.synchronizedList(new ArrayList<>());
+        for (UUID uuid : top) {
+
+            if (uuid == null)
+                continue;
+
+            topStats stats = JobsTop.getGlobalStats(uuid);
+
+            if (stats == null)
+                continue;
+
+            TopList tl = new TopList(uuid, stats.getLevel(), (int) stats.getExperience());
+            gTopNames.add(tl);
+        }
 
         return new ArrayList<>(gTopNames);
     }
-
-    private void updateGTop() {
-        gTopTime = System.currentTimeMillis();
-
-        JobsConnection conn = getConnection();
-        ArrayList<TopList> tNames = new ArrayList<TopList>();
-        if (conn == null)
-            return;
-
-        PreparedStatement prest = null;
-        ResultSet res = null;
-        try {
-
-            prest = conn.prepareStatement("SELECT " + JobsTableFields.userid.getCollumn()
-                + ", COUNT(*) AS amount, sum(" + JobsTableFields.level.getCollumn() + ") AS totallvl, sum(" + JobsTableFields.experience.getCollumn() + ") AS totalexp FROM `" + getJobsTableName()
-                + "` GROUP BY userid ORDER BY totallvl DESC, totalexp DESC;");
-            res = prest.executeQuery();
-
-            while (res.next()) {
-                PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(res.getInt(JobsTableFields.userid.getCollumn()));
-                if (info == null) {
-                    continue;
-                }
-
-                if (Jobs.getGCManager().JobsTopHiddenPlayers.contains(info.getName().toLowerCase())) {
-                    continue;
-                }
-
-                tNames.add(new TopList(info.getUuid(), res.getInt("totallvl"), res.getInt("totalexp")));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            close(res);
-            close(prest);
-        }
-        gTopNames = Collections.synchronizedList(new ArrayList<>(tNames));
-    }
-
-    List<TopList> qTopNames = Collections.synchronizedList(new ArrayList<>());
-    long qTopTime = 0L;
 
     /**
      * Get players by quests done
@@ -1820,50 +1806,30 @@ public abstract class JobsDAO {
      * @param size - max count of entries
      * @return info - information about jobs
      */
+    @Deprecated
     public List<TopList> getQuestTopList() {
-        if (qTopTime == 0L) {
-            updateQTop();
+
+        List<UUID> top = JobsQuestTop.getGlobalTopList(0);
+
+        if (top == null || top.isEmpty())
+            return new ArrayList<>();
+
+        List<TopList> gTopNames = Collections.synchronizedList(new ArrayList<>());
+        for (UUID uuid : top) {
+
+            if (uuid == null)
+                continue;
+
+            Integer stats = JobsQuestTop.getGlobalCount(uuid);
+
+            if (stats == null)
+                continue;
+
+            TopList tl = new TopList(uuid, stats, 0);
+            gTopNames.add(tl);
         }
 
-        if (System.currentTimeMillis() - qTopTime > 30 * 1000L)
-            CMIScheduler.runTaskAsynchronously(plugin, this::updateQTop);
-
-        return new ArrayList<>(qTopNames);
-    }
-
-    private void updateQTop() {
-        qTopTime = System.currentTimeMillis();
-        JobsConnection conn = getConnection();
-        List<TopList> names = new ArrayList<>();
-        if (conn == null)
-            return;
-
-        PreparedStatement prest = null;
-        ResultSet res = null;
-        try {
-            prest = conn.prepareStatement("SELECT `id`, `" + UserTableFields.player_uuid.getCollumn() + "`, `" + UserTableFields.donequests.getCollumn() + "` FROM `" + DBTables.UsersTable.getTableName()
-                + "` ORDER BY `" + UserTableFields.donequests.getCollumn() + "` DESC, LOWER(" + UserTableFields.seen.getCollumn() + ") DESC;");
-
-            res = prest.executeQuery();
-
-            while (res.next()) {
-                PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(res.getInt("id"));
-                if (info == null)
-                    continue;
-
-                names.add(new TopList(info.getUuid(), res.getInt(UserTableFields.donequests.getCollumn()), 0));
-
-                if (names.size() >= Jobs.getGCManager().JobsTopAmount)
-                    break;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            close(res);
-            close(prest);
-        }
-
-        qTopNames = Collections.synchronizedList(new ArrayList<>(names));
+        return new ArrayList<>(gTopNames);
     }
 
     public PlayerInfo loadPlayerData(UUID uuid) {
@@ -1946,27 +1912,38 @@ public abstract class JobsDAO {
         }
     }
 
-    public CompletableFuture<JobsPlayer> loadFromDao(JobsPlayer jPlayer) {
+    public CompletableFuture<JobsPlayer> loadFromDaoAsync(JobsPlayer jPlayer) {
         return CompletableFuture.supplyAsync(() -> {
-            List<JobsDAOData> list = getAllJobs(jPlayer.getName(), jPlayer.getUniqueId()).join();
-            jPlayer.progression.clear();
-            for (JobsDAOData jobdata : list) {
-                if (!plugin.isEnabled())
-                    return null;
-
-                // add the job
-                Job job = Jobs.getJob(jobdata.getJobName());
-                if (job != null)
-                    jPlayer.progression.add(new JobProgression(job, jPlayer, jobdata.getLevel(), jobdata.getExperience()));
-            }
-            jPlayer.reloadMaxExperience();
-            jPlayer.reloadLimits();
-            jPlayer.setUserId(Jobs.getPlayerManager().getPlayerId(jPlayer.getUniqueId()));
-            return jPlayer;
+            return loadFromDao(jPlayer);
         });
     }
 
-    public CompletableFuture<JobsPlayer> loadFromDao(OfflinePlayer player) {
+    public JobsPlayer loadFromDao(JobsPlayer jPlayer) {
+        List<JobsDAOData> list = getAllJobs(jPlayer.getName(), jPlayer.getUniqueId());
+        jPlayer.progression.clear();
+        for (JobsDAOData jobdata : list) {
+            if (!plugin.isEnabled())
+                return null;
+
+            // add the job
+            Job job = Jobs.getJob(jobdata.getJobName());
+            if (job != null)
+                jPlayer.progression.add(new JobProgression(job, jPlayer, jobdata.getLevel(), jobdata.getExperience()));
+        }
+        jPlayer.reloadMaxExperience();
+        jPlayer.reloadLimits();
+        jPlayer.setUserId(Jobs.getPlayerManager().getPlayerId(jPlayer.getUniqueId()));
+        return jPlayer;
+    }
+
+    @Deprecated
+    public CompletableFuture<JobsPlayer> loadFromDaoAsync(OfflinePlayer player) {
+        JobsPlayer jPlayer = new JobsPlayer(player);
+        return loadFromDaoAsync(jPlayer);
+    }
+
+    @Deprecated
+    public JobsPlayer loadFromDao(OfflinePlayer player) {
         JobsPlayer jPlayer = new JobsPlayer(player);
         return loadFromDao(jPlayer);
     }

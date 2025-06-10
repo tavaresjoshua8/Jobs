@@ -106,6 +106,7 @@ import com.gamingmesh.jobs.container.ExploreRespond;
 import com.gamingmesh.jobs.container.FastPayment;
 import com.gamingmesh.jobs.container.JobItems;
 import com.gamingmesh.jobs.container.JobProgression;
+import com.gamingmesh.jobs.container.JobsMobSpawner;
 import com.gamingmesh.jobs.container.JobsPlayer;
 import com.gamingmesh.jobs.container.blockOwnerShip.BlockOwnerShip;
 import com.gamingmesh.jobs.container.blockOwnerShip.BlockOwnerShip.ownershipFeedback;
@@ -127,6 +128,7 @@ import net.Zrips.CMILib.Items.CMIMC;
 import net.Zrips.CMILib.Items.CMIMaterial;
 import net.Zrips.CMILib.Locale.LC;
 import net.Zrips.CMILib.Messages.CMIMessages;
+import net.Zrips.CMILib.PersistentData.CMIPersistentDataContainer;
 import net.Zrips.CMILib.Version.Version;
 import net.Zrips.CMILib.Version.Schedulers.CMIScheduler;
 import uk.antiperson.stackmob.entity.StackEntity;
@@ -317,10 +319,8 @@ public final class JobsPaymentListener implements Listener {
             return;
 
         // mob spawner, no payment or experience
-        if (!Jobs.getGCManager().payNearSpawner() && entity.hasMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata())) {
-            entity.removeMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata(), plugin);
+        if (JobsMobSpawner.invalidForPaymentSpawnerMob(entity))
             return;
-        }
 
         // check if in creative
         if (!payIfCreative(player))
@@ -394,9 +394,6 @@ public final class JobsPaymentListener implements Listener {
                 return;
         }
 
-        if (ownerShip.isDisabled(uuid, block.getLocation()))
-            return;
-
         // only care about first
         if (uuid == null && !data.isEmpty()) {
             MetadataValue value = data.get(0);
@@ -408,6 +405,9 @@ public final class JobsPaymentListener implements Listener {
         }
 
         if (uuid == null)
+            return;
+
+        if (ownerShip.isDisabled(uuid, block.getLocation()))
             return;
 
         JobsPlayer jPlayer = Jobs.getPlayerManager().getJobsPlayer(uuid);
@@ -553,11 +553,9 @@ public final class JobsPaymentListener implements Listener {
             return;
         }
 
-        // mob spawner, no payment or experience
-        if (!Jobs.getGCManager().payNearSpawner() && animal.hasMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata())) {
-            animal.removeMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata(), plugin);
+        // mob spawner, no payment or experience        
+        if (JobsMobSpawner.invalidForPaymentSpawnerMob(animal))
             return;
-        }
 
         Player player = (Player) event.getOwner();
         if (!player.isOnline())
@@ -1272,17 +1270,12 @@ public final class JobsPaymentListener implements Listener {
         if (killer == null)
             return;
 
-        // mob spawner, no payment or experience
-        if (!Jobs.getGCManager().payNearSpawner() && lVictim.hasMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata())) {
-            try {
-                // So lets remove meta in case some plugin removes entity in wrong way.
-                // Need to delay action for other function to properly check for existing meta data relating to this entity before clearing it out
-                // Longer delay is needed due to mob split event being fired few seconds after mob dies and not at same time
-                CMIScheduler.runTaskLater(plugin, () -> lVictim.removeMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata(), plugin), 200L);
-            } catch (Throwable ignored) {
-            }
+        // mob spawner, no payment or experience     
+        // So lets remove meta in case some plugin removes entity in wrong way.
+        // Need to delay action for other function to properly check for existing meta data relating to this entity before clearing it out
+        // Longer delay is needed due to mob split event being fired few ticks after mob dies and not at same time
+        if (JobsMobSpawner.invalidForPaymentSpawnerMob(lVictim, true))
             return;
-        }
 
         if (Jobs.getGCManager().MonsterDamageUse) {
             boolean ignore = false;
@@ -1411,7 +1404,7 @@ public final class JobsPaymentListener implements Listener {
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         if ((event.getSpawnReason() == SpawnReason.SPAWNER || event.getSpawnReason() == SpawnReason.SPAWNER_EGG)
             && Jobs.getGCManager().canPerformActionInWorld(event.getEntity().getWorld())) {
-            event.getEntity().setMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata(), new FixedMetadataValue(plugin, true));
+            JobsMobSpawner.setSpawnerMeta(event.getEntity());
         }
     }
 
@@ -1555,7 +1548,7 @@ public final class JobsPaymentListener implements Listener {
         if (!Jobs.getGCManager().canPerformActionInWorld(event.getEntity().getWorld()))
             return;
 
-        if (!event.getEntity().hasMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata()))
+        if (!JobsMobSpawner.isSpawnerEntity(event.getEntity()))
             return;
 
         EntityType type = event.getEntityType();
@@ -1811,6 +1804,9 @@ public final class JobsPaymentListener implements Listener {
             } else if (done == ownershipFeedback.reenabled && jPlayer != null) {
                 CMIActionBar.send(p, Jobs.getLanguage().getMessage("general.error.reenabledBlock"));
             }
+
+            BlockOwnerShip.saveDelay();
+
         } else if (!block.getType().toString().startsWith("STRIPPED_") &&
             event.getAction() == Action.RIGHT_CLICK_BLOCK && jPlayer != null && hand.toString().endsWith("_AXE")) {
             // check if player is riding
@@ -1887,8 +1883,11 @@ public final class JobsPaymentListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChunkUnload(ChunkUnloadEvent event) {
+        if (Version.isCurrentEqualOrHigher(Version.v1_15_R1))
+            return;
+
         for (Entity entity : event.getChunk().getEntities()) {
-            entity.removeMetadata(Jobs.getPlayerManager().getMobSpawnerMetadata(), plugin);
+            JobsMobSpawner.removeSpawnerMeta(entity);
         }
     }
 
