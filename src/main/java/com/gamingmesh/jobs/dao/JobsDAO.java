@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -45,6 +47,7 @@ import com.gamingmesh.jobs.economy.PaymentData;
 import com.gamingmesh.jobs.stuff.ToggleBarHandling;
 import com.gamingmesh.jobs.stuff.Util;
 
+import net.Zrips.CMILib.Logs.CMIDebug;
 import net.Zrips.CMILib.Messages.CMIMessages;
 import net.Zrips.CMILib.Time.CMITimeManager;
 import net.Zrips.CMILib.Version.Schedulers.CMIScheduler;
@@ -1021,14 +1024,15 @@ public abstract class JobsDAO {
 
     public void triggerTableIdUpdate() {
         // Lets convert old fields
-        if (!converted) {
-            CMIScheduler.get().runTaskLater(() -> {
-                CMIMessages.consoleMessage("&6[Jobs] Converting to new database format");
-                convertID();
-                CMIMessages.consoleMessage("&6[Jobs] Converted to new database format");
-                converted = true;
-            }, 60L);
-        }
+        if (converted)
+            return;
+
+        CMIScheduler.runTaskLater(plugin, () -> {
+            CMIMessages.consoleMessage("&6[Jobs] Converting to new database format");
+            convertID();
+            CMIMessages.consoleMessage("&6[Jobs] Converted to new database format");
+            converted = true;
+        }, 60L);
     }
 
     private void convertID() {
@@ -1749,91 +1753,33 @@ public abstract class JobsDAO {
         }
     }
 
+    List<TopList> gTopNames = Collections.synchronizedList(new ArrayList<>());
+    long gTopTime = 0L;
+
+    /**
+     * Get player list by total job level
+     * @param start - starting entry
+     * @return info - information about jobs
+     */
     public List<TopList> getGlobalTopList() {
-        return getGlobalTopList(0);
+
+        if (gTopTime == 0L) {
+            updateGTop();
+        }
+
+        if (System.currentTimeMillis() - gTopTime > 30 * 1000L)
+            CMIScheduler.runTaskAsynchronously(plugin, this::updateGTop);
+
+        return new ArrayList<>(gTopNames);
     }
 
-    HashMap<String, List<TopList>> TopListByJobCache = new HashMap<String, List<TopList>>();
-    HashMap<String, Long> TopListByJobUpdateCache = new HashMap<String, Long>();
-
-    /**
-     * Get player list by total job level
-     * @param start - starting entry
-     * @return info - information about jobs
-     */
-    public List<TopList> getTopListByJob(Job job, int amount) {
-
-        if (System.currentTimeMillis() - TopListByJobUpdateCache.getOrDefault(job.getName(), 0L) < 30 * 1000L) {
-            return TopListByJobCache.get(job.getName());
-        }
-
-        TopListByJobUpdateCache.put(job.getName(), System.currentTimeMillis());
-
-        List<TopList> jobs = new ArrayList<>();
-        JobsConnection conn = getConnection();
-        if (conn == null)
-            return jobs;
-
-        PreparedStatement prest = null;
-        ResultSet res = null;
-
-        try {
-            prest = conn.prepareStatement("SELECT `" + JobsTableFields.userid.getCollumn() + "`, `" + JobsTableFields.level.getCollumn() + "`, `" + JobsTableFields.experience.getCollumn() + "` FROM `"
-                + getJobsTableName() + "` WHERE `" + JobsTableFields.jobid.getCollumn() + "` LIKE ? OR `" + JobsTableFields.jobid.getCollumn() + "` LIKE ? ORDER BY `" + JobsTableFields.level.getCollumn()
-                + "` DESC, `" + JobsTableFields.experience.getCollumn() + "` DESC LIMIT " + 0 + ", " + amount + ";");
-            prest.setInt(1, job.getId());
-            prest.setInt(2, job.getLegacyId());
-            res = prest.executeQuery();
-
-            while (res.next()) {
-                PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(res.getInt(JobsTableFields.userid.getCollumn()));
-
-                if (info == null)
-                    continue;
-
-                if (Jobs.getGCManager().JobsTopHiddenPlayers.contains(info.getName().toLowerCase()))
-                    continue;
-
-                jobs.add(new TopList(info, res.getInt(JobsTableFields.level.getCollumn()), res.getInt(JobsTableFields.experience.getCollumn())));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            close(res);
-            close(prest);
-        }
-
-        TopListByJobCache.put(job.getName(), jobs);
-
-        return jobs;
-    }
-
-    List<TopList> GTopListByJobCache = new ArrayList<TopList>();
-    Long GTopListByJobUpdateCache = 0L;
-
-    /**
-     * Get player list by total job level
-     * @param start - starting entry
-     * @return info - information about jobs
-     */
-    public List<TopList> getGlobalTopList(int start) {
-
-        if (System.currentTimeMillis() - GTopListByJobUpdateCache < 30 * 1000L) {
-            return GTopListByJobCache;
-        }
-
-        GTopListByJobUpdateCache = System.currentTimeMillis();
+    private void updateGTop() {
+        gTopTime = System.currentTimeMillis();
 
         JobsConnection conn = getConnection();
-        List<TopList> names = new ArrayList<>();
+        ArrayList<TopList> tNames = new ArrayList<TopList>();
         if (conn == null)
-            return names;
-
-        if (start < 0) {
-            start = 0;
-        }
-
-        int jobsTopAmount = Jobs.getGCManager().JobsTopAmount * 2;
+            return;
 
         PreparedStatement prest = null;
         ResultSet res = null;
@@ -1841,21 +1787,20 @@ public abstract class JobsDAO {
 
             prest = conn.prepareStatement("SELECT " + JobsTableFields.userid.getCollumn()
                 + ", COUNT(*) AS amount, sum(" + JobsTableFields.level.getCollumn() + ") AS totallvl, sum(" + JobsTableFields.experience.getCollumn() + ") AS totalexp FROM `" + getJobsTableName()
-                + "` GROUP BY userid ORDER BY totallvl DESC, totalexp DESC LIMIT " + start + "," + jobsTopAmount + ";");
+                + "` GROUP BY userid ORDER BY totallvl DESC, totalexp DESC;");
             res = prest.executeQuery();
 
             while (res.next()) {
                 PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(res.getInt(JobsTableFields.userid.getCollumn()));
-                if (info == null)
+                if (info == null) {
                     continue;
+                }
 
-                if (Jobs.getGCManager().JobsTopHiddenPlayers.contains(info.getName().toLowerCase()))
+                if (Jobs.getGCManager().JobsTopHiddenPlayers.contains(info.getName().toLowerCase())) {
                     continue;
+                }
 
-                names.add(new TopList(info, res.getInt("totallvl"), res.getInt("totalexp")));
-
-                if (names.size() >= jobsTopAmount)
-                    break;
+                tNames.add(new TopList(info.getUuid(), res.getInt("totallvl"), res.getInt("totalexp")));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -1863,9 +1808,11 @@ public abstract class JobsDAO {
             close(res);
             close(prest);
         }
-        GTopListByJobCache = names;
-        return names;
+        gTopNames = Collections.synchronizedList(new ArrayList<>(tNames));
     }
+
+    List<TopList> qTopNames = Collections.synchronizedList(new ArrayList<>());
+    long qTopTime = 0L;
 
     /**
      * Get players by quests done
@@ -1873,21 +1820,29 @@ public abstract class JobsDAO {
      * @param size - max count of entries
      * @return info - information about jobs
      */
-    public List<TopList> getQuestTopList(int start) {
+    public List<TopList> getQuestTopList() {
+        if (qTopTime == 0L) {
+            updateQTop();
+        }
+
+        if (System.currentTimeMillis() - qTopTime > 30 * 1000L)
+            CMIScheduler.runTaskAsynchronously(plugin, this::updateQTop);
+
+        return new ArrayList<>(qTopNames);
+    }
+
+    private void updateQTop() {
+        qTopTime = System.currentTimeMillis();
         JobsConnection conn = getConnection();
         List<TopList> names = new ArrayList<>();
         if (conn == null)
-            return names;
-
-        if (start < 0) {
-            start = 0;
-        }
+            return;
 
         PreparedStatement prest = null;
         ResultSet res = null;
         try {
             prest = conn.prepareStatement("SELECT `id`, `" + UserTableFields.player_uuid.getCollumn() + "`, `" + UserTableFields.donequests.getCollumn() + "` FROM `" + DBTables.UsersTable.getTableName()
-                + "` ORDER BY `" + UserTableFields.donequests.getCollumn() + "` DESC, LOWER(" + UserTableFields.seen.getCollumn() + ") DESC LIMIT " + start + ", 30;");
+                + "` ORDER BY `" + UserTableFields.donequests.getCollumn() + "` DESC, LOWER(" + UserTableFields.seen.getCollumn() + ") DESC;");
 
             res = prest.executeQuery();
 
@@ -1896,7 +1851,7 @@ public abstract class JobsDAO {
                 if (info == null)
                     continue;
 
-                names.add(new TopList(info, res.getInt(UserTableFields.donequests.getCollumn()), 0));
+                names.add(new TopList(info.getUuid(), res.getInt(UserTableFields.donequests.getCollumn()), 0));
 
                 if (names.size() >= Jobs.getGCManager().JobsTopAmount)
                     break;
@@ -1907,7 +1862,8 @@ public abstract class JobsDAO {
             close(res);
             close(prest);
         }
-        return names;
+
+        qTopNames = Collections.synchronizedList(new ArrayList<>(names));
     }
 
     public PlayerInfo loadPlayerData(UUID uuid) {
@@ -2832,13 +2788,32 @@ public abstract class JobsDAO {
         return nameList;
     }
 
-    /**
-     * Show top list
-     * @param toplist - toplist by jobs name
-     * @return
-     */
-    public List<TopList> toplist(String jobsname) {
-        return toplist(jobsname, 0);
+    Map<String, topCache> topNames = Collections.synchronizedMap(new ConcurrentHashMap<>());
+
+    private class topCache {
+        long time = 0L;
+        List<TopList> jobs;
+
+        public topCache(long time, List<TopList> jobs) {
+            this.time = time;
+            this.jobs = jobs;
+        }
+
+        public long getTime() {
+            return time;
+        }
+
+        public void setTime(long time) {
+            this.time = time;
+        }
+
+        public List<TopList> getJobs() {
+            return jobs;
+        }
+
+        public void setJobs(List<TopList> jobs) {
+            this.jobs = jobs;
+        }
     }
 
     /**
@@ -2846,26 +2821,40 @@ public abstract class JobsDAO {
      * @param toplist - toplist by jobs name
      * @return
      */
-    public List<TopList> toplist(String jobsname, int limit) {
+    public List<TopList> toplist(String jobsname) {
+
+        topCache cached = topNames.computeIfAbsent(jobsname, k -> new topCache(0L, new ArrayList<>()));
+
+        if (cached.getTime() == 0L) {
+            updateTopList(cached, jobsname);
+        }
+
+        if (System.currentTimeMillis() - cached.getTime() > 30 * 1000L)
+            CMIScheduler.runTaskAsynchronously(plugin, () -> updateTopList(cached, jobsname));
+
+        return new ArrayList<>(cached.getJobs());
+    }
+
+    private void updateTopList(topCache cached, String jobsname) {
+
+        cached.setTime(System.currentTimeMillis());
+
         List<TopList> jobs = new ArrayList<>();
         JobsConnection conn = getConnection();
         if (conn == null)
-            return jobs;
+            return;
 
         Job job = Jobs.getJob(jobsname);
         if (job == null)
-            return jobs;
+            return;
 
         PreparedStatement prest = null;
         ResultSet res = null;
 
-        if (limit < 0)
-            limit = 0;
-
         try {
             prest = conn.prepareStatement("SELECT `" + JobsTableFields.userid.getCollumn() + "`, `" + JobsTableFields.level.getCollumn() + "`, `" + JobsTableFields.experience.getCollumn() + "` FROM `"
                 + getJobsTableName() + "` WHERE `" + JobsTableFields.jobid.getCollumn() + "` LIKE ? OR `" + JobsTableFields.jobid.getCollumn() + "` LIKE ? ORDER BY `" + JobsTableFields.level.getCollumn()
-                + "` DESC, `" + JobsTableFields.experience.getCollumn() + "` DESC LIMIT " + limit + ", 50;");
+                + "` DESC, `" + JobsTableFields.experience.getCollumn() + "` DESC;");
             prest.setInt(1, job.getId());
             prest.setInt(2, job.getLegacyId());
             res = prest.executeQuery();
@@ -2873,7 +2862,7 @@ public abstract class JobsDAO {
             while (res.next()) {
                 PlayerInfo info = Jobs.getPlayerManager().getPlayerInfo(res.getInt(JobsTableFields.userid.getCollumn()));
                 if (info != null)
-                    jobs.add(new TopList(info, res.getInt(JobsTableFields.level.getCollumn()), res.getInt(JobsTableFields.experience.getCollumn())));
+                    jobs.add(new TopList(info.getUuid(), res.getInt(JobsTableFields.level.getCollumn()), res.getInt(JobsTableFields.experience.getCollumn())));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -2881,8 +2870,7 @@ public abstract class JobsDAO {
             close(res);
             close(prest);
         }
-
-        return jobs;
+        cached.setJobs(Collections.synchronizedList(new ArrayList<>(jobs)));
     }
 
     /**
