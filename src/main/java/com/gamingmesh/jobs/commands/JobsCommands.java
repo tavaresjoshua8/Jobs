@@ -300,18 +300,21 @@ public class JobsCommands implements CommandExecutor {
         }
 
         for (ActionType actionType : ActionType.values()) {
-            if (type.isEmpty() || type.startsWith(actionType.getName().toLowerCase())) {
-                List<JobInfo> info = job.getJobInfo(actionType);
-                if (info != null && !info.isEmpty()) {
-                    String m = jobInfoMessage(player, job, actionType);
-                    if (m.contains("\n"))
-                        message.addAll(Arrays.asList(m.split("\n")));
-                    else
-                        message.add(m);
-                } else if (!type.isEmpty()) {
-                    message.add(Jobs.getLanguage().getMessage("command.info.output." + actionType.getName().toLowerCase() + ".none", job));
-                }
+
+            if (!type.isEmpty() && !type.startsWith(actionType.getName().toLowerCase()))
+                continue;
+
+            List<JobInfo> info = job.getJobInfo(actionType);
+            if (info != null && !info.isEmpty()) {
+                String m = jobInfoMessage(player, job, actionType);
+                if (m.contains("\n"))
+                    message.addAll(Arrays.asList(m.split("\n")));
+                else
+                    message.add(m);
+            } else if (!type.isEmpty()) {
+                message.add(Jobs.getLanguage().getMessage("command.info.output." + actionType.getName().toLowerCase() + ".none", job));
             }
+
         }
 
         PageInfo pi = new PageInfo(15, message.size(), page);
@@ -344,7 +347,7 @@ public class JobsCommands implements CommandExecutor {
     /**
      * Displays info about a particular action
      * @param player - the player of the job
-     * @param prog - the job we are displaying info about
+     * @param job - the job we are displaying info about
      * @param type - the type of action
      * @return the message
      */
@@ -485,7 +488,8 @@ public class JobsCommands implements CommandExecutor {
 
     /**
      * Displays job stats about a particular player's job from archive
-     * @param jobInfo - jobinfo string line
+     * @param jPlayer - the player of the job
+     * @param jobProg - the job progress of the players job
      * @return the message
      */
     public String jobStatsMessageArchive(JobsPlayer jPlayer, JobProgression jobProg) {

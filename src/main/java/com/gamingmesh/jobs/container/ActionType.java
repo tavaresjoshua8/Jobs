@@ -18,62 +18,98 @@
 
 package com.gamingmesh.jobs.container;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+
+import org.bukkit.inventory.ItemStack;
+
 import net.Zrips.CMILib.Container.CMIText;
+import net.Zrips.CMILib.Items.CMIMaterial;
 
 public enum ActionType {
-    BREAK(),
-    NEXOBREAK("NexoBreak"),
-    STRIPLOGS("StripLogs"),
-    TNTBREAK("TNTBreak"),
-    PLACE(),
-    KILL(),
-    MMKILL("MMKill"),
-    FISH(),
-    PYROFISHINGPRO("PyroFishingPro"),
-    CUSTOMFISHING("CustomFishing"),
-    CRAFT(),
-    VTRADE("VTrade"),
-    SMELT(),
-    BREW(),
-    ENCHANT(),
-    REPAIR(),
-    BREED(),
-    TAME(),
-    DYE(),
-    SHEAR(),
-    MILK(),
-    EXPLORE(),
-    EAT(),
-    CUSTOMKILL("custom-kill"),
-    COLLECT(),
-    BAKE(),
-    BUCKET(),
-    BRUSH();
+	BREAK(CMIMaterial.DIAMOND_PICKAXE, ActionSubType.BLOCK, ActionSubType.PROTECTED),
+	NEXOBREAK("NexoBreak", CMIMaterial.NETHERITE_PICKAXE, ActionSubType.BLOCK, ActionSubType.PROTECTED, ActionSubType.CUSTOM),
+	STRIPLOGS("StripLogs", CMIMaterial.STRIPPED_ACACIA_LOG, ActionSubType.BLOCK),
+	TNTBREAK("TNTBreak", CMIMaterial.TNT, ActionSubType.BLOCK),
+	PLACE(CMIMaterial.BRICKS, ActionSubType.BLOCK, ActionSubType.PROTECTED),
+	KILL(CMIMaterial.DIAMOND_SWORD, ActionSubType.ENTITY),
+	MMKILL("MMKill", CMIMaterial.WOODEN_SWORD, ActionSubType.ENTITY, ActionSubType.CUSTOM),
+	FISH(CMIMaterial.FISHING_ROD, ActionSubType.MATERIAL),
+	PYROFISHINGPRO("PyroFishingPro", CMIMaterial.PUFFERFISH, ActionSubType.CUSTOM),
+	CUSTOMFISHING("CustomFishing", CMIMaterial.TROPICAL_FISH, ActionSubType.CUSTOM),
+	CRAFT(CMIMaterial.CRAFTING_TABLE, ActionSubType.MATERIAL),
+	VTRADE("VTrade", CMIMaterial.EMERALD, ActionSubType.MATERIAL),
+	SMELT(CMIMaterial.FURNACE, ActionSubType.MATERIAL),
+	BREW(CMIMaterial.BREWING_STAND, ActionSubType.MATERIAL),
+	ENCHANT(CMIMaterial.ENCHANTING_TABLE, ActionSubType.ENCHANTMENT, ActionSubType.MATERIAL),
+	REPAIR(CMIMaterial.ANVIL, ActionSubType.MATERIAL),
+	BREED(CMIMaterial.APPLE, ActionSubType.ENTITY),
+	TAME(CMIMaterial.LEAD, ActionSubType.ENTITY),
+	DYE(CMIMaterial.PURPLE_DYE, ActionSubType.MATERIAL),
+	SHEAR(CMIMaterial.SHEARS, ActionSubType.ENTITY),
+	MILK(CMIMaterial.MILK_BUCKET, ActionSubType.ENTITY),
+	EXPLORE(CMIMaterial.LEATHER_BOOTS, ActionSubType.CUSTOM),
+	EAT(CMIMaterial.BREAD, ActionSubType.MATERIAL),
+	CUSTOMKILL("custom-kill", CMIMaterial.PLAYER_HEAD, ActionSubType.ENTITY, ActionSubType.CUSTOM),
+	COLLECT(CMIMaterial.SWEET_BERRIES, ActionSubType.MATERIAL),
+	BAKE(CMIMaterial.CAKE, ActionSubType.MATERIAL),
+	BUCKET(CMIMaterial.BUCKET, ActionSubType.MATERIAL),
+	BRUSH(CMIMaterial.BRUSH, ActionSubType.BLOCK, ActionSubType.MATERIAL),
+	WAX(CMIMaterial.HONEYCOMB, ActionSubType.BLOCK, ActionSubType.PROTECTED),
+	SCRAPE(CMIMaterial.WOODEN_AXE, ActionSubType.BLOCK, ActionSubType.PROTECTED);
 
-    private String name;
+	private String name;
 
-    ActionType(String name) {
-        this.name = name;
-    }
+	private List<ItemStack> guiItems = new ArrayList<ItemStack>();
 
-    ActionType() {
-        this.name = CMIText.firstToUpperCase(this.toString());
-    }
+	private EnumSet<ActionSubType> subTypes = EnumSet.noneOf(ActionSubType.class);
 
-    public String getName() {
-        return name;
-    }
+	ActionType(CMIMaterial guiMat, ActionSubType... subTypes) {
+		this(null, guiMat, subTypes);
+	}
 
-    public static ActionType getByName(String name) {
-        if (name != null) {
-            name = name.replace("_", "");
+	ActionType(String name, CMIMaterial guiMat, ActionSubType... subTypes) {
+		this.subTypes = (subTypes == null || subTypes.length == 0) ? EnumSet.noneOf(ActionSubType.class) : EnumSet.copyOf(Arrays.asList(subTypes));
+		this.name = name == null ? CMIText.firstToUpperCase(this.toString()) : name;
+		getGuiItems().add(guiMat.newItemStack());
+	}
 
-            for (ActionType one : ActionType.values()) {
-                if (one.name.equalsIgnoreCase(name))
-                    return one;
-            }
-        }
+	public String getName() {
+		return name;
+	}
 
-        return null;
-    }
+	public boolean hasSubType(ActionSubType subType) {
+		return subTypes.contains(subType);
+	}
+
+	public EnumSet<ActionSubType> getSubTypes() {
+		return subTypes;
+	}
+
+	public static ActionType getByName(String name) {
+		if (name != null) {
+			name = name.replace("_", "");
+
+			// Temp fix to rename vax to wax
+			if (name.equalsIgnoreCase("vax"))
+				name = "wax";
+
+			for (ActionType one : ActionType.values()) {
+				if (one.name.equalsIgnoreCase(name))
+					return one;
+			}
+		}
+
+		return null;
+	}
+
+	public List<ItemStack> getGuiItems() {
+		return guiItems;
+	}
+
+	public void setGuiItems(List<ItemStack> guiItems) {
+		this.guiItems = guiItems;
+	}
 }

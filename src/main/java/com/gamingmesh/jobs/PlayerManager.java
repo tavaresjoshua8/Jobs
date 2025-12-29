@@ -70,6 +70,7 @@ import net.Zrips.CMILib.ActionBar.CMIActionBar;
 import net.Zrips.CMILib.Container.CMINumber;
 import net.Zrips.CMILib.Items.CMIItemStack;
 import net.Zrips.CMILib.Items.CMIMaterial;
+import net.Zrips.CMILib.Logs.CMIDebug;
 import net.Zrips.CMILib.Messages.CMIMessages;
 import net.Zrips.CMILib.Version.Version;
 import net.Zrips.CMILib.Version.Schedulers.CMIScheduler;
@@ -399,7 +400,7 @@ public class PlayerManager {
      * This can return null sometimes if the given player
      * is not cached into memory.
      *
-     * @param player the player uuid
+     * @param uuid the player uuid
      * @return {@link JobsPlayer} the player job info of the player
      */
     public JobsPlayer getJobsPlayer(UUID uuid) {
@@ -413,7 +414,7 @@ public class PlayerManager {
      * This can return null sometimes if the given player
      * is not cached into memory.
      *
-     * @param player name - the player name who's job you're getting
+     * @param playerName name - the player name who's job you're getting
      * @return {@link JobsPlayer} the player job info of the player
      */
     public JobsPlayer getJobsPlayer(String playerName) {
@@ -756,12 +757,8 @@ public class PlayerManager {
             prog.getLevel(),
             Jobs.getTitleManager().getTitle(oldLevel, prog.getJob().getName()),
             Jobs.getTitleManager().getTitle(prog.getLevel(), prog.getJob().getName()),
-            Jobs.getGCManager().SoundLevelupSound,
-            Jobs.getGCManager().SoundLevelupVolume,
-            Jobs.getGCManager().SoundLevelupPitch,
-            Jobs.getGCManager().SoundTitleChangeSound,
-            Jobs.getGCManager().SoundTitleChangeVolume,
-            Jobs.getGCManager().SoundTitleChangePitch);
+            Jobs.getGCManager().soundLevelup,
+            Jobs.getGCManager().soundTitleChange);
 
         plugin.getServer().getPluginManager().callEvent(levelUpEvent);
 
@@ -771,8 +768,7 @@ public class PlayerManager {
 
         if (player != null && Jobs.getGCManager().SoundLevelupUse) {
             try {
-                player.getWorld().playSound(player.getLocation(), levelUpEvent.getSound(),
-                    levelUpEvent.getSoundVolume(), levelUpEvent.getSoundPitch());
+                levelUpEvent.getLevelupSound().play(player.getLocation());
             } catch (Exception e) { // If it fails, we can ignore it
             }
         }
@@ -824,8 +820,7 @@ public class PlayerManager {
             }, Jobs.getGCManager().ShootTime);
         }
 
-        String message = Jobs.getLanguage().getMessage("message.levelup." + (Jobs.getGCManager().isBroadcastingLevelups()
-            ? "broadcast" : "nobroadcast"));
+        String message = Jobs.getLanguage().getMessage("message.levelup." + (Jobs.getGCManager().isBroadcastingLevelups() ? "broadcast" : "nobroadcast"));
 
         message = Language.updateJob(message, job);
 
@@ -856,8 +851,7 @@ public class PlayerManager {
         if (levelUpEvent.getNewTitle() != null && !levelUpEvent.getNewTitle().equals(levelUpEvent.getOldTitle())) {
             if (player != null && Jobs.getGCManager().SoundTitleChangeUse) {
                 try {
-                    player.getWorld().playSound(player.getLocation(), levelUpEvent.getTitleChangeSound(), levelUpEvent.getTitleChangeVolume(),
-                        levelUpEvent.getTitleChangePitch());
+                    levelUpEvent.getTitleChangeSound().play(player.getLocation());
                 } catch (Exception e) { // If it fails, we can ignore it
                 }
             }
@@ -965,7 +959,7 @@ public class PlayerManager {
             return;
         for (int newLevel = oldLevel + 1; newLevel <= untilLevel; newLevel++) {
             List<String> commands = getCommandsOnLevelUp(jPlayer, prog, newLevel);
-            commands.stream().forEach(cmd -> plugin.getServer().dispatchCommand(plugin.getServer().getConsoleSender(), cmd));
+            commands.stream().forEach(cmd -> CMIScheduler.runTask(plugin, () -> plugin.getServer().dispatchCommand(plugin.getServer().getConsoleSender(), cmd)));
         }
     }
 

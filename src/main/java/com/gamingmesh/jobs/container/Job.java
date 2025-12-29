@@ -28,6 +28,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.BiPredicate;
 
+import javax.annotation.Nonnull;
+
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -36,6 +38,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 
 import com.gamingmesh.jobs.Jobs;
 import com.gamingmesh.jobs.Gui.GuiItem;
@@ -43,6 +46,7 @@ import com.gamingmesh.jobs.actions.EnchantActionInfo;
 import com.gamingmesh.jobs.actions.PotionItemActionInfo;
 import com.gamingmesh.jobs.container.JobsTop.topStats;
 import com.gamingmesh.jobs.stuff.Util;
+import com.gamingmesh.jobs.BoostManager;
 
 import net.Zrips.CMILib.Colors.CMIChatColor;
 import net.Zrips.CMILib.Container.CMINumber;
@@ -157,6 +161,12 @@ public class Job {
      */
     public void addBoost(CurrencyType type, double point) {
         boost.add(type, point);
+        // Notify boost manager to save the updated boosts
+        try {
+            BoostManager.onBoostAdded();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -179,6 +189,12 @@ public class Job {
         }
 
         boost.add(type, point, System.currentTimeMillis() + (duration * 1000L));
+        // Notify boost manager to save the updated boosts
+        try {
+            BoostManager.onBoostAdded();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
     }
 
     public void setBoost(BoostMultiplier boost) {
@@ -813,7 +829,7 @@ public class Job {
         this.legacyId = legacyId;
     }
 
-    public void updateTop(UUID uuid, int level, double experience) {
+    public void updateTop(@NotNull UUID uuid, int level, double experience) {
         topList.updateAsync(uuid, level, experience);
     }
 

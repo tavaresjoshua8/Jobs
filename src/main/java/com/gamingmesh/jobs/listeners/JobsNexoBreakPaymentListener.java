@@ -2,7 +2,6 @@ package com.gamingmesh.jobs.listeners;
 
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -43,7 +42,7 @@ public class JobsNexoBreakPaymentListener implements Listener {
             return;
 
         // check if player is riding
-        if (Jobs.getGCManager().disablePaymentIfRiding && player.isInsideVehicle() && !player.getVehicle().getType().equals(EntityType.BOAT))
+        if (Jobs.getGCManager().disablePaymentIfRiding && player.isInsideVehicle())
             return;
 
         if (!JobsPaymentListener.payForItemDurabilityLoss(player))

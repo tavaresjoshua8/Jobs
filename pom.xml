@@ -5,29 +5,25 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>Jobs</groupId>
 	<artifactId>jobs</artifactId>
-	<version>5.2.6.0</version>
+	<version>5.2.6.5</version>
 	<name>Jobs</name>
 	<url>http://maven.apache.org</url>
 
 	<properties>
-		<maven.compiler.source>21</maven.compiler.source>
-		<maven.compiler.target>21</maven.compiler.target>
+		<maven.compiler.source>1.8</maven.compiler.source>
+		<maven.compiler.target>1.8</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
 	<dependencies>
+        <!-- Spigot API -->
 		<dependency>
 			<groupId>org.spigotmc</groupId>
 			<artifactId>spigot-api</artifactId>
-			<version>1.20.6-R0.1-SNAPSHOT</version>
+			<version>1.21.10-R0.1-SNAPSHOT</version>
 			<scope>provided</scope>
 		</dependency>
-		<dependency>
-			<groupId>org.spigotmc</groupId>
-			<artifactId>spigot</artifactId>
-			<version>1.20.6-R0.1-SNAPSHOT</version>
-			<scope>provided</scope>
-		</dependency>
+        <!-- Mojang Authlib -->
 		<dependency>
 			<groupId>com.mojang</groupId>
 			<artifactId>authlib</artifactId>
@@ -156,12 +152,12 @@
 			</exclusions>
 		</dependency>
 		<!-- CMILib -->
-<!--				<dependency>-->
-<!--					<groupId>com.github.Zrips</groupId>-->
-<!--					<artifactId>CMILib</artifactId>-->
-<!--					<version>1.4.7.4</version>-->
-<!--				</dependency>-->
-		<!--		 WildStacker -->
+		<dependency>
+			<groupId>com.github.Zrips</groupId>
+			<artifactId>CMILib</artifactId>
+			<version>1.5.6.3</version>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>com.bgsoftware</groupId>
 			<artifactId>WildStackerAPI</artifactId>
@@ -288,10 +284,12 @@
 		<plugins>
 			<!-- Make a Jar -->
 			<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
 				</configuration>
 			</plugin>
 		</plugins>
